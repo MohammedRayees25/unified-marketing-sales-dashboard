@@ -5,10 +5,10 @@ This repository contains the final submission for the **Unified Marketing -> Sal
 The final implementation uses:
 
 - **Microsoft Fabric Notebook** for ETL using **PySpark**
-- **Delta tables in a Fabric Lakehouse** for Bronze, Silver, and Gold layers
+- **Delta tables in a Fabric Lakehouse** for Gold tables
 - **Power BI** for reporting, connected directly to the Fabric Lakehouse
 
-The earlier local Python/CSV/Streamlit pipeline has been removed because the final submission is now fully aligned to the requirement: **ETL in Microsoft Fabric and reporting in Power BI**.
+The earlier local Python/CSV/Streamlit pipeline has been removed. The submission now fully meets the requirement: **ETL in Microsoft Fabric and reporting in Power BI**.
 
 ---
 
@@ -26,38 +26,53 @@ data-engineer-assignment/
     bronze_to_silver.sql
     silver_to_gold.sql
     fabric_warehouse.sql
-  requirements.txt          (kept for reference only – not used in Fabric)
+  requirements.txt
 
-**Final solution summary**
 
-**ETL**
+###Final solution summary
+
+###ETL
 
 ETL runs inside a Fabric Notebook using PySpark. The notebook:
 
-Generates realistic mock data directly inside the notebook (simulating API ingestion from Meta Ads, Google Ads, YouTube, Zoho CRM, and Zoho Projects) – no external CSV files are read.
+Fetches live Zoho CRM deals via OAuth 2.0 (refresh token, pagination) – this is the only dynamic source.
 
-Cleans and normalizes the data into Silver (in-memory transformations).
+Transforms deals into Silver (clean, rename, cast) and then into Gold tables for Sales KPIs.
 
-Builds KPI-ready business tables in Gold.
+Writes the following Gold Delta tables:
 
-Writes the final outputs as Delta tables into the Fabric Lakehouse (bronze_*, silver_*, and gold_* tables).
+gold_sales_pipeline – deals count and total value per stage.
 
-**Reporting**
+gold_executive_kpis – deals_won and revenue_delivered.
 
-The dashboard is built in Power BI and connected directly to the Fabric Lakehouse Delta tables (Gold layer). The report includes:
+Also creates static mock tables for Marketing (gold_marketing_performance) and Delivery (gold_project_delivery), plus a static mapping table gold_sales_to_projects (won deal → dummy project).
 
-Marketing performance (spend, leads, CPL, CTR, campaign breakdown)
+###Why are Marketing and Projects static?
 
-Sales funnel and conversion KPIs (stage funnel, conversion rate, deal velocity)
+Marketing APIs (Meta, Google, YouTube) were not implemented – the assignment allows sample datasets for non‑critical sources.
 
-Delivery / project progress (task completion gauge, project‑wise completion bar chart, count of active projects)
+Zoho Projects API was attempted but could not be completed due to technical limitations of the trial account (multi‑scope OAuth not supported, endpoint configuration errors). A static placeholder is used instead, documented as a known limitation.
 
-Sales‑to‑project KPIs (deals converted to projects, revenue delivered, average project value, and a detailed table)
+###Reporting
+The dashboard is built in Power BI and connected directly to the Fabric Lakehouse Delta tables. The layout is:
 
-Power BI dashboard screenshots are attached in the submission email (or a live report link is provided separately).
+Side	Sections
+Left	Sales (top‑left) + Sales→Project (bottom‑left)
+Right	Marketing (top‑right) + Delivery (bottom‑right)
 
-**Deliverables mapping
-**
+The report includes all required KPIs:
+
+Marketing: spend, leads, CPL, CTR, campaign breakdown.
+
+Sales: funnel, conversion rate, deal velocity, deals won, revenue delivered.
+
+Delivery: task completion gauge, project‑wise bar chart, active projects.
+
+Sales→Project: deals converted, revenue delivered, average project value, mapping table.
+
+Power BI dashboard screenshots are attached in the submission email (a live report link is also provided separately).
+
+###Deliverables mapping
 
 Requirement	File / Artifact
 Architecture diagram	docs/architecture.md
@@ -67,39 +82,37 @@ SQL reference scripts	sql/ (reference only, not executed)
 Fabric setup notes	docs/fabric_setup.md
 Power BI dashboard	Screenshots in email / live link from workspace
 
-**KPI definitions
-**
+###KPI definitions
+
 Cost per Lead = Total Spend / Leads Generated
 
 Conversion Rate = Deals Won / Total Deals (simplified proxy)
 
-Deal Velocity = Deals Won / Total Deals (simplified proxy – days not tracked in mock data)
+Deal Velocity = Deals Won / Total Deals (simplified proxy)
 
 Deals → Projects Conversion = Projects Created / Deals Won
 
 Project Completion % = Completed Tasks / Total Tasks
 
-Revenue Delivered = Sum of Won Deal values that are linked to a project
+Revenue Delivered = Sum of Won Deal values linked to a project
 
 Avg Project Value = Revenue Delivered / Projects Created
 
-**Data modeling and mapping
-**
+###Data modelling and mapping
 
-Marketing Campaign → CRM Lead using Lead Source
+Marketing Campaign → CRM Lead (attribution by Lead Source)
 
-CRM Lead → Deal using lead_id
+CRM Lead → Deal via lead_id
 
-Deal → Project using deal_id
+Won Deal → Project via deal_id
 
-Project → Task using project_id
+Project → Task via project_id
 
-Attribution is handled via Lead Source in this assignment version. In production, campaign IDs or UTM parameters would be used.
+In a production environment, campaign IDs or UTM parameters would replace the simple Lead Source attribution.
 
-**Reliability and scale notes
-**
+###Reliability and scale notes
 
-Pipeline supports incremental ingestion using timestamp columns (created_date, close_date, start_date).
+The dynamic CRM pipeline supports incremental ingestion using timestamp columns (created_date, close_date).
 
 Basic retry and logging patterns are expected at the API ingestion layer.
 
@@ -111,19 +124,15 @@ The architecture is compatible with Microsoft Fabric Lakehouse, Fabric Pipelines
 
 The design can be extended to event‑driven or near‑real‑time ingestion.
 
-**Notes**
+###Notes
 
-Zoho CRM and Zoho Projects data were generated using trial‑account‑compatible mock data inside the notebook. The notebook is ready to be swapped with real API calls when credentials are available.
+Zoho CRM is fully dynamic – OAuth 2.0, pagination, live deals, won deals, revenue.
 
-requirements.txt is kept only as a reference from the original local prototype. It is not used in the final Fabric execution path (the notebook runs entirely within Fabric’s Spark environment).
+Zoho Projects API integration was attempted but could not be completed due to trial limitations (multi‑scope OAuth not supported, endpoint errors). A static placeholder is used.
 
-The Fabric notebook writes Bronze, Silver, and Gold Delta tables in the Lakehouse. The Power BI report reads only the Gold tables for performance and clarity.
+Marketing sources (Meta, Google, YouTube) use static mock data – the assignment explicitly allows sample datasets.
 
-**Submission proof
-**
+requirements.txt is kept only as a reference from the original local prototype and is not used in the final Fabric execution path.
 
-GitHub repository: https://github.com/MohammedRayees25/unified-marketing-sales-dashboard
+The notebook writes only the necessary Gold tables; Bronze and Silver layers exist logically but are not persisted (acceptable for the assignment).
 
-Fabric notebook: fabric/notebook_etl.py
-
-Power BI dashboard: Screenshots attached in the submission email + report published in Fabric workspace (link provided separately).
